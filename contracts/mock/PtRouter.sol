@@ -8,7 +8,7 @@ import  "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "../Interfaces/ICurveRouter.sol";
 import "../Interfaces/IAMM.sol";
  
-contract CurveRouter is IAMM,Ownable {
+contract PtRouter is IAMM,Ownable {
 
   IERC20 public immutable  WETH;
   IERC20 public immutable  lyu;
@@ -19,7 +19,7 @@ contract CurveRouter is IAMM,Ownable {
        lyu = _lyu;
        amm = ICurveRouter(_amm) ;
     }
-    function exchange(address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) external returns (uint256 ){
+    function exchange(address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) internal returns (uint256 ){
        IERC20(lyu).transferFrom(msg.sender,address(this),_amount);
        IERC20(WETH).transfer(msg.sender,_expected);
        return _expected;
@@ -30,8 +30,6 @@ contract CurveRouter is IAMM,Ownable {
       (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
        
       uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
-      
-      IERC20(WETH).transfer(msg.sender,leveragedCollateralChange);
 
       return leveragedCollateralChange;
     }

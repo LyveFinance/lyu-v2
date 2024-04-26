@@ -5,7 +5,7 @@ import  "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import  "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
 
 import "./Addresses.sol";
-import  "./Interfaces/ICurveRouter.sol";
+import  "./Interfaces/IAMM.sol";
 import  "./Interfaces/IBorrowerOperations.sol";
 import  "./Interfaces/IAdminContract.sol";
 import "./DebtFlashMint.sol";
@@ -17,12 +17,13 @@ import "./Interfaces/IPriceFeed.sol";
 contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     using SafeERC20 for IERC20;
 
-    ICurveRouter public immutable  amm;
     IERC20 public immutable  collateralToken;
+
     address public immutable  debtFlashMint;
     
     uint256 public constant  MAX_LEFTOVER_R = 1e18;
 
+	mapping(address => IAMM) public amm;
 
     error AmmCannotBeZero();
 
@@ -35,23 +36,17 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     error InvalidInitiator();
 
     constructor(
-        ICurveRouter amm_,
         IERC20 _collateralToken,
         address _debtFlashMint
     ){
-        if (address(amm_) == address(0)) {
-            revert AmmCannotBeZero();
-        }
         if (address(_collateralToken) == address(0)) {
             revert CollateralTokenCannotBeZero();
         }
         if (address(_debtFlashMint) == address(0)) {
             revert DebtFlashMintCannotBeZero();
         }
-        amm = amm_;
         collateralToken = _collateralToken;
         debtFlashMint = _debtFlashMint;
-        IERC20(debtToken).approve(address(amm), type(uint256).max);
         IERC20(debtToken).approve(debtToken, type(uint256).max);
         IERC20(debtToken).approve(_debtFlashMint, type(uint256).max);
         _collateralToken.safeApprove(borrowerOperations, type(uint256).max);
@@ -81,6 +76,11 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
     }
 
+    function setAMM(address _asset, IAMM _ammAddress) public onlyOwner {
+        require(_asset != address(0), "asset address cannot be zero");
+        amm[_asset] = _ammAddress;
+    }
+
     function _checkParam (
         address _asset,
 		uint256 _assetAmount,
@@ -90,15 +90,15 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
       uint256 loanAssetAmount =  (maxLeverage - 1 ether)* _assetAmount/MAX_LEFTOVER_R;
       uint256 price = IPriceFeed(priceFeed).fetchPrice(_asset);
       uint256 maxLoanAmount = loanAssetAmount * price/MAX_LEFTOVER_R;
-      require(maxLoanAmount > _loanAmount,"Exceeded maximum borrowing");
+      require(maxLoanAmount > _loanAmount,"exceeded maximum borrowing");
+      require(address(amm[_asset]) != address(0),"amm is null");
+
     }
 
     function getMaxLeverage (address _asset) public view returns (uint256){
         uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
         return  mcr * MAX_LEFTOVER_R /(mcr - 1 ether);
     }
-
-
 
     function onFlashLoan(
         address initiator,
@@ -125,14 +125,11 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
             bytes memory _ammData
         ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, bytes));
 
-       (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools)
-        = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
-
-        require(_amount == loanAmount,"_amount error");
-
-        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, loanAmount, _expected, _pools);
+        IERC20(debtToken).transfer(address(amm[_asset]),loanAmount);
+        uint256 leveragedCollateralChange = amm[_asset].swap(_ammData);
 
         require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
+        
         IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, loanAmount+ fee, _upperHint, _lowerHint);
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
