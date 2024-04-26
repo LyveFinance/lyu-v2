@@ -287,7 +287,9 @@ contract VesselManager is IVesselManager, UUPSUpgradeable, ReentrancyGuardUpgrad
 			IFeeCollector(feeCollector).handleRedemptionFee(_asset, _assetFeeAmount);
 		}
 		// Burn the total debt tokens that is cancelled with debt, and send the redeemed asset to msg.sender
-		IDebtToken(debtToken).burn(_receiver, _debtToRedeem);
+		IDebtToken(debtToken).transferFrom(msg.sender,address(this), _debtToRedeem);
+		IDebtToken(debtToken).burnFromWhitelistedContract( _debtToRedeem);
+
 		// Update Active Pool, and send asset to account
 		uint256 collToSendToRedeemer = _assetRedeemedAmount - _assetFeeAmount;
 		IActivePool(activePool).decreaseDebt(_asset, _debtToRedeem);
@@ -425,7 +427,7 @@ contract VesselManager is IVesselManager, UUPSUpgradeable, ReentrancyGuardUpgrad
 		uint256 _assetAmount
 	) external nonReentrant onlyVesselManagerOperations {
 		if (_debtTokenAmount != 0) {
-			IDebtToken(debtToken).returnFromPool(gasPoolAddress, _liquidator, _debtTokenAmount);
+			IDebtToken(debtToken).transferFrom(gasPoolAddress, _liquidator, _debtTokenAmount);
 		}
 		if (_assetAmount != 0) {
 			IActivePool(activePool).sendAsset(_asset, _liquidator, _assetAmount);

@@ -25,18 +25,15 @@ interface IAMM {
         address indexed tokenIn, address indexed tokenOut, uint256 amountIn, uint256 amountOut, uint256 minReturn
     );
 
-    /// @dev Swaps `amountIn` of `tokenIn` for `tokenOut`. Fails if returned amount is smaller than `minReturn`.
     /// @param tokenIn Address of the token that is being swapped.
     /// @param tokenOut Address of the token to swap for.
     /// @param amountIn Amount of `tokenIn` being swapped.
-    /// @param minReturn Minimum amount of `tokenOut` to get as a result of swap.
     /// @param extraData Extra data for particular integration with DEX/Aggregator.
     /// @return amountOut Actual amount that was returned from swap. Needs to be >= `minReturn`.
     function swap(
         IERC20 tokenIn,
         IERC20 tokenOut,
         uint256 amountIn,
-        uint256 minReturn,
         bytes calldata extraData
     )
         external

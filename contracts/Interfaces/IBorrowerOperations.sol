@@ -26,6 +26,7 @@ interface IBorrowerOperations {
 	// --- Functions ---
 
 	function openVessel(
+		address _borrower,
 		address _asset,
 		uint256 _assetAmount,
 		uint256 _debtTokenAmount,
@@ -49,6 +50,7 @@ interface IBorrowerOperations {
 	function closeVessel(address _asset) external;
 
 	function adjustVessel(
+		address _borrower,
 		address _asset,
 		uint256 _assetSent,
 		uint256 _collWithdrawal,

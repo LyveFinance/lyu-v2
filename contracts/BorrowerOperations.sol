@@ -63,8 +63,8 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 	}
 
 	// --- Borrower Vessel Operations ---
-
 	function openVessel(
+		address _borrower,
 		address _asset,
 		uint256 _assetAmount,
 		uint256 _debtTokenAmount,
@@ -78,7 +78,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		vars.price = IPriceFeed(priceFeed).fetchPrice(vars.asset);
 		bool isRecoveryMode = _checkRecoveryMode(vars.asset, vars.price);
 
-		_requireVesselIsNotActive(vars.asset, msg.sender);
+		_requireVesselIsNotActive(vars.asset, _borrower);
 
 		vars.netDebt = _debtTokenAmount;
 
@@ -105,15 +105,15 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		}
 
 		// Set the vessel struct's properties
-		IVesselManager(vesselManager).setVesselStatus(vars.asset, msg.sender, 1); // Vessel Status 1 = Active
-		IVesselManager(vesselManager).increaseVesselColl(vars.asset, msg.sender, _assetAmount);
-		IVesselManager(vesselManager).increaseVesselDebt(vars.asset, msg.sender, vars.compositeDebt);
+		IVesselManager(vesselManager).setVesselStatus(vars.asset, _borrower, 1); // Vessel Status 1 = Active
+		IVesselManager(vesselManager).increaseVesselColl(vars.asset, _borrower, _assetAmount);
+		IVesselManager(vesselManager).increaseVesselDebt(vars.asset, _borrower, vars.compositeDebt);
 
-		IVesselManager(vesselManager).updateVesselRewardSnapshots(vars.asset, msg.sender);
-		vars.stake = IVesselManager(vesselManager).updateStakeAndTotalStakes(vars.asset, msg.sender);
+		IVesselManager(vesselManager).updateVesselRewardSnapshots(vars.asset, _borrower);
+		vars.stake = IVesselManager(vesselManager).updateStakeAndTotalStakes(vars.asset, _borrower);
 
-		ISortedVessels(sortedVessels).insert(vars.asset, msg.sender, vars.NICR, _upperHint, _lowerHint);
-		vars.arrayIndex = IVesselManager(vesselManager).addVesselOwnerToArray(vars.asset, msg.sender);
+		ISortedVessels(sortedVessels).insert(vars.asset, _borrower, vars.NICR, _upperHint, _lowerHint);
+		vars.arrayIndex = IVesselManager(vesselManager).addVesselOwnerToArray(vars.asset, _borrower);
 		emit VesselCreated(vars.asset, msg.sender, vars.arrayIndex);
 
 		// Move the asset to the Active Pool, and mint the debtToken amount to the borrower
@@ -126,13 +126,13 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 
 		emit VesselUpdated(
 			vars.asset,
-			msg.sender,
+			_borrower,
 			vars.compositeDebt,
 			_assetAmount,
 			vars.stake,
 			BorrowerOperation.openVessel
 		);
-		emit BorrowingFeePaid(vars.asset, msg.sender, vars.debtTokenFee);
+		emit BorrowingFeePaid(vars.asset, _borrower, vars.debtTokenFee);
 	}
 
 	// Send collateral to a vessel
@@ -176,6 +176,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 	}
 
 	function adjustVessel(
+		address _borrower,
 		address _asset,
 		uint256 _assetSent,
 		uint256 _collWithdrawal,
@@ -187,7 +188,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		_adjustVessel(
 			_asset,
 			_assetSent,
-			msg.sender,
+			_borrower,
 			_collWithdrawal,
 			_debtTokenChange,
 			_isDebtIncrease,
@@ -346,7 +347,8 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 
 	function _triggerBorrowingFee(address _asset, uint256 _debtTokenAmount) internal returns (uint256) {
 		uint256 debtTokenFee = IVesselManager(vesselManager).getBorrowingFee(_asset, _debtTokenAmount);
-		IDebtToken(debtToken).mint(_asset, feeCollector, debtTokenFee);
+		IDebtToken(debtToken).mintFromWhitelistedContract(debtTokenFee);
+		IDebtToken(debtToken).transfer(feeCollector,debtTokenFee);
 		IFeeCollector(feeCollector).increaseDebt(msg.sender, _asset, debtTokenFee);
 		return debtTokenFee;
 	}
@@ -429,7 +431,8 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 			_netDebtIncrease;
 		require(newTotalAssetDebt <= IAdminContract(adminContract).getMintCap(_asset), "Exceeds mint cap");
 		IActivePool(activePool).increaseDebt(_asset, _netDebtIncrease);
-		IDebtToken(debtToken).mint(_asset, _account, _debtTokenAmount);
+		IDebtToken(debtToken).mintFromWhitelistedContract(_debtTokenAmount);
+		IDebtToken(debtToken).transfer(_account,_debtTokenAmount);
 	}
 
 	// Burn the specified amount of debt tokens from _account and decreases the total active debt
@@ -437,7 +440,8 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		/// @dev the borrowing fee partial refund is accounted for when decreasing the debt, as it was included when vessel was opened
 		IActivePool(activePool).decreaseDebt(_asset, _debtTokenAmount + _refund);
 		/// @dev the borrowing fee partial refund is not burned here, as it has already been burned by the FeeCollector
-		IDebtToken(debtToken).burn(_account, _debtTokenAmount);
+		IDebtToken(debtToken).transferFrom(_account,address(this), _debtTokenAmount);
+		IDebtToken(debtToken).burnFromWhitelistedContract(_debtTokenAmount);
 	}
 
 	// --- 'Require' wrapper functions ---

@@ -525,7 +525,7 @@ contract StabilityPool is ReentrancyGuardUpgradeable, UUPSUpgradeable, GravitaBa
 	function _moveOffsetCollAndDebt(address _asset, uint256 _amount, uint256 _debtToOffset) internal {
 		IActivePool(activePool).decreaseDebt(_asset, _debtToOffset);
 		_decreaseDebtTokens(_debtToOffset);
-		IDebtToken(debtToken).burn(address(this), _debtToOffset);
+		IDebtToken(debtToken).burnFromWhitelistedContract(_debtToOffset);
 		IActivePool(activePool).sendAsset(_asset, address(this), _amount);
 	}
 
@@ -726,7 +726,7 @@ contract StabilityPool is ReentrancyGuardUpgradeable, UUPSUpgradeable, GravitaBa
 
 	// Transfer the tokens from the user to the Stability Pool's address, and update its recorded deposits
 	function _sendToStabilityPool(address _address, uint256 _amount) internal {
-		IDebtToken(debtToken).sendToPool(_address, address(this), _amount);
+		IDebtToken(debtToken).transferFrom(_address, address(this), _amount);
 		uint256 newTotalDeposits = totalDebtTokenDeposits + _amount;
 		totalDebtTokenDeposits = newTotalDeposits;
 		emit StabilityPoolDebtTokenBalanceUpdated(newTotalDeposits);
@@ -766,7 +766,7 @@ contract StabilityPool is ReentrancyGuardUpgradeable, UUPSUpgradeable, GravitaBa
 		if (debtTokenWithdrawal == 0) {
 			return;
 		}
-		IDebtToken(debtToken).returnFromPool(address(this), _depositor, debtTokenWithdrawal);
+		IDebtToken(debtToken).transfer( _depositor, debtTokenWithdrawal);
 		_decreaseDebtTokens(debtTokenWithdrawal);
 	}
 
