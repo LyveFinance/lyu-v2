@@ -34,15 +34,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
 
     error InvalidInitiator();
 
-    event LeveragedPositionAdjusted(
-        address indexed position,
-        uint256 principalCollateralChange,
-        bool principalCollateralIncrease,
-        uint256 debtChange,
-        bool isDebtIncrease,
-        uint256 leveragedCollateralChange
-    );
-
     constructor(
         ICurveRouter amm_,
         IERC20 _collateralToken,
@@ -69,20 +60,18 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     function openOneStepLeverage(
         address _asset,
 		uint256 _assetAmount,
-		uint256 _debateAmount,
         uint256 _loanAmount,
         uint256 _minAssetAmount,
 		address _upperHint,
 		address _lowerHint,
         bytes calldata ammData
     ) external{
-        _checkParam(_asset,_assetAmount,_debateAmount,_loanAmount);
+        _checkParam(_asset,_assetAmount,_loanAmount);
         IERC20(_asset).transferFrom(msg.sender,address(this),_assetAmount);
         bytes memory data = abi.encode(
             msg.sender,
             _asset,
             _assetAmount,
-            _debateAmount,
             _loanAmount,
             _minAssetAmount,
             _upperHint,
@@ -95,10 +84,8 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     function _checkParam (
         address _asset,
 		uint256 _assetAmount,
-        uint256 _debateAmount,
-		uint256 _loanAmount
+        uint256 _loanAmount
     ) internal view {
-      require(_debateAmount > _loanAmount,"debate must more than loan");
       uint256 maxLeverage =  getMaxLeverage(_asset);
       uint256 loanAssetAmount =  (maxLeverage - 1 ether)* _assetAmount/MAX_LEFTOVER_R;
       uint256 price = IPriceFeed(priceFeed).fetchPrice(_asset);
@@ -108,14 +95,14 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
 
     function getMaxLeverage (address _asset) public view returns (uint256){
         uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
-        return  mcr * MAX_LEFTOVER_R /(mcr-1 ether);
+        return  mcr * MAX_LEFTOVER_R /(mcr - 1 ether);
     }
 
 
 
     function onFlashLoan(
         address initiator,
-        address,
+        address ,
         uint256 loanAmount,
         uint256 fee,
         bytes calldata data
@@ -131,21 +118,22 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         (   address _borrower,
             address _asset,
             uint256 _assetAmount,
-            uint256 _debateAmount,
-             ,
+                    ,
             uint256 _minAssetAmount,
             address _upperHint,
             address _lowerHint,
             bytes memory _ammData
-        ) = abi.decode(data, (address,address, uint256, uint256,uint256,uint256, address, address, bytes));
+        ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, bytes));
 
        (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools)
         = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
 
-        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);(IERC20(debtToken), IERC20(_asset), loanAmount, _ammData);
-        require(leveragedCollateralChange > _minAssetAmount,"min error");
-        IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, _debateAmount, _upperHint, _lowerHint);
-        require(_debateAmount > loanAmount + fee,"Need DE > LF");
+        require(_amount == loanAmount,"_amount error");
+
+        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, loanAmount, _expected, _pools);
+
+        require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
+        IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, loanAmount+ fee, _upperHint, _lowerHint);
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 

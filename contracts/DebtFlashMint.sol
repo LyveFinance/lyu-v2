@@ -59,21 +59,21 @@ contract DebtFlashMint is ReentrancyGuard,Ownable {
     function flashLoan(
         IERC3156FlashBorrower receiver,
         address token,
-        uint256 amount,
+        uint256 loanAmount,
         bytes calldata data
     ) public virtual returns (bool) {
-        require(amount <= maxFlashLoan(token), "ERC20FlashMint: amount exceeds maxFlashLoan");
-        uint256 fee = flashFee(token, amount);
-        _mint(address(receiver), amount);
+        require(loanAmount <= maxFlashLoan(token), "ERC20FlashMint: amount exceeds maxFlashLoan");
+        uint256 fee = flashFee(token, loanAmount);
+        _mint(address(receiver), loanAmount);
         require( 
-            receiver.onFlashLoan(msg.sender, token, amount, fee, data) == _RETURN_VALUE,
+            receiver.onFlashLoan(msg.sender, token, loanAmount, fee, data) == _RETURN_VALUE,
             "FlashMint: invalid return value"
         );
         address flashFeeReceiver = _flashFeeReceiver();
         if (fee == 0 || flashFeeReceiver == address(0)) {
-            _burn(address(receiver), amount + fee);
+            _burn(address(receiver), loanAmount + fee);
         } else {
-            _burn(address(receiver), amount);
+            _burn(address(receiver), loanAmount);
             _transfer(address(receiver), flashFeeReceiver, fee);
         }
         return true;
