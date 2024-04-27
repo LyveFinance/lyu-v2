@@ -7,6 +7,7 @@ import  "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "./Addresses.sol";
 import  "./Interfaces/IAMM.sol";
 import  "./Interfaces/IBorrowerOperations.sol";
+import  "./Interfaces/IVesselManager.sol";
 import  "./Interfaces/IAdminContract.sol";
 import "./DebtFlashMint.sol";
 import "./Interfaces/IDebtToken.sol";
@@ -133,38 +134,43 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
             address _lowerHint,
             uint256 _isAdjustType,
             bytes memory _ammData
-        ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, bytes));
+        ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, uint256,bytes));
 
         IERC20(debtToken).transfer(address(amm[_asset]),loanAmount);
         uint256 leveragedCollateralChange = amm[_asset].swap(_ammData);
 
         require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
         uint256 debateAmount = loanAmount+ fee;
+        uint256 assetAmount = _assetAmount+ leveragedCollateralChange;
+
         if (_isAdjustType == 0) {
-            _openVessel(_borrower, _asset, _assetAmount, leveragedCollateralChange, debateAmount, _minAssetAmount, _upperHint, _lowerHint);
+            _openVessel(_borrower, _asset, _assetAmount, debateAmount, _upperHint, _lowerHint);
         } else if (_isAdjustType == 1) {
-            _adjustVessel(_borrower, _asset, _assetAmount, leveragedCollateralChange, debateAmount, _minAssetAmount, _upperHint, _lowerHint);
+            _adjustVessel(_borrower, _asset, assetAmount, debateAmount, _upperHint, _lowerHint);
         }
 
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
     function _openVessel(
-        address _borrower, address _asset,
-        uint256 _assetAmount, uint256 _leveragedCollateralChange,
-        uint256 _debateAmount, uint256 _minAssetAmount,
-        address _upperHint, address _lowerHint) {
-            IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + _leveragedCollateralChange, _debateAmount, _upperHint, _lowerHint);
+        address _borrower, 
+        address _asset,
+        uint256 _assetAmount,
+        uint256 _debateAmount,
+        address _upperHint, address _lowerHint) internal  {
+            IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount, _debateAmount, _upperHint, _lowerHint);
     }
 
     function _adjustVessel(
-        address _borrower, address _asset,
-        uint256 _assetAmount, uint256 _leveragedCollateralChange,
-        uint256 _debateAmount, uint256 _minAssetAmount,
-        address _upperHint, address _lowerHint) {
-            IBorrowerOperations(borrowerOperations)._adjustVessel(_borrower, _asset, _assetAmount + _leveragedCollateralChange, 0, _debateAmount, _upperHint, _lowerHint);
+        address _borrower,
+        address _asset,
+        uint256 _assetChangeAmount, 
+        uint256 _debateAmount,
+        address _upperHint,
+        address _lowerHint) internal {
+            bool isDebtIncrease = _debateAmount > 0;
+            IBorrowerOperations(borrowerOperations).adjustVessel(_borrower, _asset, _assetChangeAmount , 0, _debateAmount, isDebtIncrease,_upperHint, _lowerHint);
     }
-
 
     function adjustLeverage(
         address _asset,
@@ -196,15 +202,17 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         uint256 _coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
 		uint256 _debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);
         uint256 ownColl = _assetAmount + _coll;
-        uint256 canMaxBorrowAmount = _getAdjustLeverageCanMaxBorrowAmount(_asset, _borrower, _coll, _debt, _assetPrice, _assetAmount);
+        uint256 canMaxBorrowAmount = getAdjustLeverageCanMaxBorrowAmount(_asset, _coll, _debt, _assetPrice, _assetAmount);
         return  (ownColl + canMaxBorrowAmount) * MAX_LEFTOVER_R / ownColl;
     }
 
     // calculate the borrowable amount to adjust leverage
-    function _getAdjustLeverageCanMaxBorrowAmount(
-        address _asset, address _borrower,
-        uint256 _coll, uint256 _debt,
-        uint256 _assetPrice, uint256 _assetAmount) public view returns (uint256) {
+    function getAdjustLeverageCanMaxBorrowAmount(
+        address _asset,
+        uint256 _coll, 
+        uint256 _debt,
+        uint256 _assetPrice, 
+        uint256 _assetAmount) public view returns (uint256) {
             uint256 ownColl = _assetAmount + _coll;
             uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
             uint256 newMaxBorrowAmount = ownColl * _assetPrice / mcr;
@@ -221,7 +229,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
         uint256 coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
 		uint256 debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);
-        uint256 maxLoanAmount = _getAdjustLeverageCanMaxBorrowAmount(_asset, _borrower, coll, debt, _assetPrice, _assetAmount); 
+        uint256 maxLoanAmount = getAdjustLeverageCanMaxBorrowAmount(_asset, coll, debt, _assetPrice, _assetAmount); 
         require(maxLoanAmount >= _loanAmount,"exceeded maximum borrowing");
         require(address(amm[_asset]) != address(0),"amm is null");
     }
