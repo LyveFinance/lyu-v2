@@ -86,9 +86,10 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
 		uint256 _assetAmount,
         uint256 _loanAmount
     ) internal view {
-      uint256 maxLoanAmount = getMaxBorrowAmount(_asset, _assetPrice, _assetAmount); 
-      require(maxLoanAmount > _loanAmount,"exceeded maximum borrowing");
-      require(address(amm[_asset]) != address(0),"amm is null");
+        uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
+        uint256 maxLoanAmount = getMaxBorrowAmount(_asset, _assetPrice, _assetAmount); 
+        require(maxLoanAmount > _loanAmount,"exceeded maximum borrowing");
+        require(address(amm[_asset]) != address(0),"amm is null");
     }
 
     // Calculate the maximum number of LYUs that can be borrowed based on the given collateral
