@@ -3,6 +3,8 @@ pragma solidity ^0.8.19;
 
 import  "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import  "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+
 
 import "./Addresses.sol";
 import  "./Interfaces/IAMM.sol";
@@ -14,7 +16,7 @@ import "./Interfaces/IDebtToken.sol";
 import "./Interfaces/IPriceFeed.sol";
 
 
-contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
+contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
     using SafeERC20 for IERC20;
 
     IERC20 public immutable  collateralToken;
@@ -24,6 +26,13 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     uint256 public constant  MAX_LEFTOVER_R = 1e18;
 
 	mapping(address => IAMM) public amm;
+
+    event AMMSet(address indexed asset, address indexed ammAddress);
+
+    event LeverageOpened(address indexed borrower, address indexed asset, uint256 assetAmount, uint256 loanAmount);
+
+    event LeverageAdjusted(address indexed borrower, address indexed asset, uint256 assetChangeAmount, uint256 debateAmount);
+
 
     error AmmCannotBeZero();
 
@@ -75,11 +84,45 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
             ammData
         );
         DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
+        emit LeverageOpened(msg.sender, _asset, _assetAmount, _loanAmount); 
+
     }
+
+
+    function adjustLeverage(
+        address _asset,
+		uint256 _assetAmount,
+        uint256 _loanAmount,
+        uint256 _minAssetAmount,
+		address _upperHint,
+		address _lowerHint,
+        bytes calldata ammData
+    ) external{
+        _adjustLeverageCheckParam(_asset, msg.sender, _assetAmount, _loanAmount);
+        IERC20(_asset).transferFrom(msg.sender, address(this), _assetAmount);
+        bytes memory data = abi.encode(
+            msg.sender,
+            _asset,
+            _assetAmount,
+            _loanAmount,
+            _minAssetAmount,
+            _upperHint,
+            _lowerHint,
+            1,
+            ammData
+        );
+        DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
+        emit LeverageAdjusted(msg.sender, _asset, _assetAmount, _loanAmount); 
+
+    }
+
 
     function setAMM(address _asset, IAMM _ammAddress) public onlyOwner {
         require(_asset != address(0), "asset address cannot be zero");
+        require(address(_ammAddress) != address(0), "_amm address cannot be zero");
         amm[_asset] = _ammAddress;
+        emit AMMSet(_asset, address(_ammAddress)); 
+
     }
 
     function _checkParam (
@@ -116,7 +159,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         uint256 loanAmount,
         uint256 fee,
         bytes calldata data
-    ) external
+    ) external nonReentrant
         returns (bytes32)
     {
         if (msg.sender != debtFlashMint) {
@@ -170,31 +213,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         address _lowerHint) internal {
             bool isDebtIncrease = _debateAmount > 0;
             IBorrowerOperations(borrowerOperations).adjustVessel(_borrower, _asset, _assetChangeAmount , 0, _debateAmount, isDebtIncrease,_upperHint, _lowerHint);
-    }
-
-    function adjustLeverage(
-        address _asset,
-		uint256 _assetAmount,
-        uint256 _loanAmount,
-        uint256 _minAssetAmount,
-		address _upperHint,
-		address _lowerHint,
-        bytes calldata ammData
-    ) external{
-        _adjustLeverageCheckParam(_asset, msg.sender, _assetAmount, _loanAmount);
-        IERC20(_asset).transferFrom(msg.sender, address(this), _assetAmount);
-        bytes memory data = abi.encode(
-            msg.sender,
-            _asset,
-            _assetAmount,
-            _loanAmount,
-            _minAssetAmount,
-            _upperHint,
-            _lowerHint,
-            1,
-            ammData
-        );
-        DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
     }
 
     // calculate the maximum leverage multiple for adjusting leverage

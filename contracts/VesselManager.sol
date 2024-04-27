@@ -287,7 +287,7 @@ contract VesselManager is IVesselManager, UUPSUpgradeable, ReentrancyGuardUpgrad
 			IFeeCollector(feeCollector).handleRedemptionFee(_asset, _assetFeeAmount);
 		}
 		// Burn the total debt tokens that is cancelled with debt, and send the redeemed asset to msg.sender
-		IDebtToken(debtToken).transferFrom(msg.sender,address(this), _debtToRedeem);
+		IDebtToken(debtToken).transferFrom(_receiver,address(this), _debtToRedeem);
 		IDebtToken(debtToken).burnFromWhitelistedContract( _debtToRedeem);
 
 		// Update Active Pool, and send asset to account
