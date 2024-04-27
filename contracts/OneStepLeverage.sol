@@ -86,17 +86,24 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
 		uint256 _assetAmount,
         uint256 _loanAmount
     ) internal view {
-      uint256 maxLeverage =  getMaxLeverage(_asset);
-      uint256 loanAssetAmount =  (maxLeverage - 1 ether)* _assetAmount/MAX_LEFTOVER_R;
-      uint256 price = IPriceFeed(priceFeed).fetchPrice(_asset);
-      uint256 maxLoanAmount = loanAssetAmount * price/MAX_LEFTOVER_R;
+      uint256 maxLoanAmount = getMaxBorrowAmount(_asset, _assetPrice, _assetAmount); 
       require(maxLoanAmount > _loanAmount,"exceeded maximum borrowing");
       require(address(amm[_asset]) != address(0),"amm is null");
+    }
 
+    // Calculate the maximum number of LYUs that can be borrowed based on the given collateral
+    function getMaxBorrowAmount(address _asset, uint256 _assetPrice, uint256 _assetAmount) public view returns (uint256) {
+        uint256 maxLeverage = getMaxLeverage(_asset);
+
+        // To calculate the amount of LYU that can be borrowed, the formula is (x - 1) * p, where x is the leverage multiple and p is the asset price
+        uint256 maxBorrowAmount = _assetAmount * _assetPrice / MAX_LEFTOVER_R * (maxLeverage - 1e18) / MAX_LEFTOVER_R;
+        return maxBorrowAmount;
     }
 
     function getMaxLeverage (address _asset) public view returns (uint256){
         uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
+        // To calculate the maximum leverage ratio, mcr needs to be based on 1e18 as the base unit
+        // The total assets are mcr and the mortgage capital is mcr - 1e18
         return  mcr * MAX_LEFTOVER_R /(mcr - 1 ether);
     }
 
