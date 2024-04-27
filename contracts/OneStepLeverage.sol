@@ -13,7 +13,6 @@ import "./Interfaces/IDebtToken.sol";
 import "./Interfaces/IPriceFeed.sol";
 
 
-
 contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     using SafeERC20 for IERC20;
 
@@ -71,6 +70,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
             _minAssetAmount,
             _upperHint,
             _lowerHint,
+            0,
             ammData
         );
         DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
@@ -88,7 +88,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
     ) internal view {
         uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
         uint256 maxLoanAmount = getMaxBorrowAmount(_asset, _assetPrice, _assetAmount); 
-        require(maxLoanAmount > _loanAmount,"exceeded maximum borrowing");
+        require(maxLoanAmount >= _loanAmount,"exceeded maximum borrowing");
         require(address(amm[_asset]) != address(0),"amm is null");
     }
 
@@ -101,6 +101,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         return maxBorrowAmount;
     }
 
+    // calculate the maximum leverage multiplier for opening leverage
     function getMaxLeverage (address _asset) public view returns (uint256){
         uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
         // To calculate the maximum leverage ratio, mcr needs to be based on 1e18 as the base unit
@@ -130,6 +131,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
             uint256 _minAssetAmount,
             address _upperHint,
             address _lowerHint,
+            uint256 _isAdjustType,
             bytes memory _ammData
         ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, bytes));
 
@@ -138,9 +140,89 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
 
         require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
         uint256 debateAmount = loanAmount+ fee;
-        IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, debateAmount, _upperHint, _lowerHint);
+        if (_isAdjustType == 0) {
+            _openVessel(_borrower, _asset, _assetAmount, leveragedCollateralChange, debateAmount, _minAssetAmount, _upperHint, _lowerHint);
+        } else if (_isAdjustType == 1) {
+            _adjustVessel(_borrower, _asset, _assetAmount, leveragedCollateralChange, debateAmount, _minAssetAmount, _upperHint, _lowerHint);
+        }
+
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
+    function _openVessel(
+        address _borrower, address _asset,
+        uint256 _assetAmount, uint256 _leveragedCollateralChange,
+        uint256 _debateAmount, uint256 _minAssetAmount,
+        address _upperHint, address _lowerHint) {
+            IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + _leveragedCollateralChange, _debateAmount, _upperHint, _lowerHint);
+    }
 
+    function _adjustVessel(
+        address _borrower, address _asset,
+        uint256 _assetAmount, uint256 _leveragedCollateralChange,
+        uint256 _debateAmount, uint256 _minAssetAmount,
+        address _upperHint, address _lowerHint) {
+            IBorrowerOperations(borrowerOperations)._adjustVessel(_borrower, _asset, _assetAmount + _leveragedCollateralChange, 0, _debateAmount, _upperHint, _lowerHint);
+    }
+
+
+    function adjustLeverage(
+        address _asset,
+		uint256 _assetAmount,
+        uint256 _loanAmount,
+        uint256 _minAssetAmount,
+		address _upperHint,
+		address _lowerHint,
+        bytes calldata ammData
+    ) external{
+        _adjustLeverageCheckParam(_asset, msg.sender, _assetAmount, _loanAmount);
+        IERC20(_asset).transferFrom(msg.sender, address(this), _assetAmount);
+        bytes memory data = abi.encode(
+            msg.sender,
+            _asset,
+            _assetAmount,
+            _loanAmount,
+            _minAssetAmount,
+            _upperHint,
+            _lowerHint,
+            1,
+            ammData
+        );
+        DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
+    }
+
+    // calculate the maximum leverage multiple for adjusting leverage
+    function getAdjustMaxLeverage (address _asset, address _borrower, uint256 _assetPrice, uint256 _assetAmount) public view returns (uint256) {
+        uint256 _coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
+		uint256 _debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);
+        uint256 ownColl = _assetAmount + _coll;
+        uint256 canMaxBorrowAmount = _getAdjustLeverageCanMaxBorrowAmount(_asset, _borrower, _coll, _debt, _assetPrice, _assetAmount);
+        return  (ownColl + canMaxBorrowAmount) * MAX_LEFTOVER_R / ownColl;
+    }
+
+    // calculate the borrowable amount to adjust leverage
+    function _getAdjustLeverageCanMaxBorrowAmount(
+        address _asset, address _borrower,
+        uint256 _coll, uint256 _debt,
+        uint256 _assetPrice, uint256 _assetAmount) public view returns (uint256) {
+            uint256 ownColl = _assetAmount + _coll;
+            uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
+            uint256 newMaxBorrowAmount = ownColl * _assetPrice / mcr;
+            uint256 canMaxBorrowAmount = newMaxBorrowAmount - _debt;
+            return canMaxBorrowAmount;
+    }
+
+    function _adjustLeverageCheckParam (
+        address _asset,
+        address _borrower,
+		uint256 _assetAmount,
+        uint256 _loanAmount
+    ) internal view {
+        uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
+        uint256 coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
+		uint256 debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);
+        uint256 maxLoanAmount = _getAdjustLeverageCanMaxBorrowAmount(_asset, _borrower, coll, debt, _assetPrice, _assetAmount); 
+        require(maxLoanAmount >= _loanAmount,"exceeded maximum borrowing");
+        require(address(amm[_asset]) != address(0),"amm is null");
+    }
 }
