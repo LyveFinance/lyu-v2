@@ -13,11 +13,14 @@ contract CurveRouter is IAMM,Ownable {
   IERC20 public immutable  WETH;
   IERC20 public immutable  lyu;
   ICurveRouter public immutable amm;
+  address public oneStepLeverage;
 
-  constructor( IERC20 _WETH,IERC20 _lyu,address _amm){
+
+  constructor( IERC20 _WETH,IERC20 _lyu,address _amm,address _oneStepLeverage){
        WETH = _WETH;
        lyu = _lyu;
        amm = ICurveRouter(_amm) ;
+      oneStepLeverage = _oneStepLeverage;
     }
     function exchange(address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) external returns (uint256 ){
        IERC20(lyu).transferFrom(msg.sender,address(this),_amount);
@@ -26,12 +29,13 @@ contract CurveRouter is IAMM,Ownable {
     }
 
     function swap( bytes calldata _ammData) external  returns (uint256 amountOut){
+      require(msg.sender == oneStepLeverage,"not oneStepLeverage");
 
       (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
-       
-      uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
-      
-      IERC20(WETH).transfer(msg.sender,leveragedCollateralChange);
+       IERC20(WETH).approve(address(amm),_amount);
+       uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
+
+       IERC20(WETH).transfer(msg.sender,leveragedCollateralChange);
 
       return leveragedCollateralChange;
     }

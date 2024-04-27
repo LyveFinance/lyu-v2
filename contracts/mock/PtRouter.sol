@@ -7,31 +7,47 @@ import  "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 import "../Interfaces/ICurveRouter.sol";
 import "../Interfaces/IAMM.sol";
- 
+ import "../Interfaces/IPtRouter.sol";
+
 contract PtRouter is IAMM,Ownable {
 
   IERC20 public immutable  WETH;
   IERC20 public immutable  lyu;
-  ICurveRouter public immutable amm;
+  IPtRouter public immutable amm;
+  address public oneStepLeverage;
 
-  constructor( IERC20 _WETH,IERC20 _lyu,address _amm){
+  constructor( IERC20 _WETH,IERC20 _lyu,address _amm,address _oneStepLeverage){
        WETH = _WETH;
        lyu = _lyu;
-       amm = ICurveRouter(_amm) ;
+       amm = IPtRouter(_amm) ;
+       oneStepLeverage = _oneStepLeverage;
     }
-    function exchange(address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) internal returns (uint256 ){
-       IERC20(lyu).transferFrom(msg.sender,address(this),_amount);
-       IERC20(WETH).transfer(msg.sender,_expected);
-       return _expected;
+    function swapExactTokenForPt(
+        address receiver,
+        address market,
+        uint256 minPtOut,
+        ApproxParams calldata guessPtOut,
+        TokenInput calldata input,
+        LimitOrderData calldata limit
+    ) external payable returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm){
+      IERC20(lyu).transferFrom(msg.sender,address(this),input.netTokenIn);
+      IERC20(WETH).transfer(msg.sender,minPtOut);
+      netPtOut = minPtOut;
     }
 
-    function swap( bytes calldata _ammData) external  returns (uint256 amountOut){
-
-      (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
-       
-      uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
-
-      return leveragedCollateralChange;
+    function swap( bytes calldata _ammData) external  returns (uint256 amountOut) {
+      require(msg.sender == oneStepLeverage,"not oneStepLeverage");
+      (address receiver,
+        address market,
+        uint256 minPtOut,
+        ApproxParams memory guessPtOut,
+        TokenInput memory input,
+        LimitOrderData memory limit) = abi.decode(_ammData,(address , address ,uint256 ,ApproxParams  ,TokenInput  ,LimitOrderData  ));
+        IERC20(input.tokenIn).approve(address(amm),input.netTokenIn);
+       (uint256 netPtOut,  ,  ) = amm.swapExactTokenForPt(msg.sender, market, minPtOut, guessPtOut, input,limit);
+        return netPtOut;
     }
+
+      
         
 }
