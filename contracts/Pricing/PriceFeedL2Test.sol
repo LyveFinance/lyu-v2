@@ -16,6 +16,11 @@ contract PriceFeedL2Test is
 {
     mapping(address => uint256) public oracleRecords;
 
+    function initialize() public initializer {
+		__Ownable_init();
+		__UUPSUpgradeable_init();
+	}
+
     function fetchPrice(address _token) external view returns (uint256) {
         return oracleRecords[_token];
     }

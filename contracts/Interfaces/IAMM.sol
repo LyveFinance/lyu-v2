@@ -6,9 +6,9 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 interface IAMM {
   
-    function swap(
+    function swap (
         bytes calldata extraData
     )
-        external
+       payable external 
         returns (uint256 amountOut);
 }

@@ -29,13 +29,13 @@ contract PtRouter is IAMM,Ownable {
         ApproxParams calldata guessPtOut,
         TokenInput calldata input,
         LimitOrderData calldata limit
-    ) external payable returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm){
+    ) external  returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm){
       IERC20(lyu).transferFrom(msg.sender,address(this),input.netTokenIn);
       IERC20(WETH).transfer(msg.sender,minPtOut);
       netPtOut = minPtOut;
     }
 
-    function swap( bytes calldata _ammData) external  returns (uint256 amountOut) {
+    function swap( bytes calldata _ammData) external  payable returns (uint256 amountOut) {
       require(msg.sender == oneStepLeverage,"not oneStepLeverage");
       (address receiver,
         address market,

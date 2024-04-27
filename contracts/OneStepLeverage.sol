@@ -137,8 +137,8 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses {
         uint256 leveragedCollateralChange = amm[_asset].swap(_ammData);
 
         require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
-        
-        IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, loanAmount+ fee, _upperHint, _lowerHint);
+        uint256 debateAmount = loanAmount+ fee;
+        IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount + leveragedCollateralChange, debateAmount, _upperHint, _lowerHint);
         return keccak256("ERC3156FlashBorrower.onFlashLoan");
     }
 
