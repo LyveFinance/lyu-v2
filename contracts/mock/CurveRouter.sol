@@ -30,11 +30,10 @@ contract CurveRouter is IAMM,Ownable {
 
     function swap( bytes calldata _ammData) external payable  returns (uint256 amountOut){
       require(msg.sender == oneStepLeverage,"not oneStepLeverage");
-
       (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
-       IERC20(WETH).approve(address(amm),_amount);
+       IERC20(lyu).transferFrom(msg.sender,address(this),_amount);
+       IERC20(lyu).approve(address(amm),_amount);
        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
-
        IERC20(WETH).transfer(msg.sender,leveragedCollateralChange);
 
       return leveragedCollateralChange;

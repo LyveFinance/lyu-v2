@@ -11,15 +11,17 @@ import "../Interfaces/IAMM.sol";
 
 contract PtRouter is IAMM,Ownable {
 
-  IERC20 public immutable  WETH;
+  IERC20 public immutable  USDC;
   IERC20 public immutable  lyu;
-  IPtRouter public immutable amm;
+  IPtRouter public immutable ptAmm;
+  ICurveRouter public immutable curveAmm;
   address public oneStepLeverage;
 
-  constructor( IERC20 _WETH,IERC20 _lyu,address _amm,address _oneStepLeverage){
-       WETH = _WETH;
+  constructor( IERC20 _USDC,IERC20 _lyu,address _ptAmm,address _curveAmm,address _oneStepLeverage){
+       USDC = _USDC;
        lyu = _lyu;
-       amm = IPtRouter(_amm) ;
+       ptAmm = IPtRouter(_ptAmm) ;
+       curveAmm = ICurveRouter(_curveAmm) ;
        oneStepLeverage = _oneStepLeverage;
     }
     function swapExactTokenForPt(
@@ -31,23 +33,28 @@ contract PtRouter is IAMM,Ownable {
         LimitOrderData calldata limit
     ) external  returns (uint256 netPtOut, uint256 netSyFee, uint256 netSyInterm){
       IERC20(lyu).transferFrom(msg.sender,address(this),input.netTokenIn);
-      IERC20(WETH).transfer(msg.sender,minPtOut);
+      IERC20(USDC).transfer(msg.sender,minPtOut);
       netPtOut = minPtOut;
     }
 
     function swap( bytes calldata _ammData) external  payable returns (uint256 amountOut) {
       require(msg.sender == oneStepLeverage,"not oneStepLeverage");
-      (address receiver,
-        address market,
-        uint256 minPtOut,
-        ApproxParams memory guessPtOut,
-        TokenInput memory input,
-        LimitOrderData memory limit) = abi.decode(_ammData,(address , address ,uint256 ,ApproxParams  ,TokenInput  ,LimitOrderData  ));
-        IERC20(input.tokenIn).approve(address(amm),input.netTokenIn);
-       (uint256 netPtOut,  ,  ) = amm.swapExactTokenForPt(msg.sender, market, minPtOut, guessPtOut, input,limit);
+
+      (bytes memory cureAmmData,bytes memory ptAmmData) = abi.decode(_ammData,(bytes, bytes));
+
+      (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(cureAmmData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
+        
+      ( ,address market,uint256 minPtOut,ApproxParams memory guessPtOut,TokenInput memory input, LimitOrderData memory limit) = abi.decode(ptAmmData,(address , address ,uint256 ,ApproxParams  ,TokenInput  ,LimitOrderData  ));
+
+        IERC20(lyu).transferFrom(msg.sender,address(this),_amount);
+        IERC20(lyu).approve(address(curveAmm),_amount);       
+        uint256 leveragedCollateralChange = curveAmm.exchange(_router, _swap_params, _amount, _expected, _pools);
+
+        require(input.netTokenIn >= leveragedCollateralChange,"pt amm netTokenIn error ");
+        IERC20(input.tokenIn).approve(address(ptAmm),input.netTokenIn);
+        (uint256 netPtOut,  ,  ) = ptAmm.swapExactTokenForPt(msg.sender, market, minPtOut, guessPtOut, input,limit);
         return netPtOut;
     }
-
       
         
 }
