@@ -209,7 +209,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
         uint256 assetAmount = _assetAmount+ leveragedCollateralChange;
 
         if (_isAdjustType == 0) {
-            _openVessel(_borrower, _asset, _assetAmount, debateAmount, _upperHint, _lowerHint);
+            _openVessel(_borrower, _asset, assetAmount, debateAmount, _upperHint, _lowerHint);
         } else if (_isAdjustType == 1) {
             _adjustVessel(_borrower, _asset, assetAmount, debateAmount, _upperHint, _lowerHint);
         }
