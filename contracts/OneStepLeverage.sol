@@ -186,7 +186,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         ) = abi.decode(data, (address,address, uint256, uint256,uint256, address, address, uint256,bytes));
 
         IERC20(debtToken).safeApprove(address(amm[_asset]),loanAmount);
-        uint256 leveragedCollateralChange = amm[_asset].swap(_ammData);
+        uint256 leveragedCollateralChange = amm[_asset].swap(debtToken,_asset,_ammData);
 
         require(leveragedCollateralChange >= _minAssetAmount,"min exchange error");
         uint256 debateAmount = loanAmount+ fee;
