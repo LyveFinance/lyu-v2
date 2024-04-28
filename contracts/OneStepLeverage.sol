@@ -193,6 +193,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         uint256 _assetAmount,
         uint256 _debateAmount,
         address _upperHint, address _lowerHint) internal  {
+            IERC20(_asset).approve(address(borrowerOperations), _assetAmount);
             IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount, _debateAmount, _upperHint, _lowerHint);
     }
 
@@ -204,6 +205,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         address _upperHint,
         address _lowerHint) internal {
             bool isDebtIncrease = _debateAmount > 0;
+            IERC20(_asset).approve(address(borrowerOperations), _assetChangeAmount);
             IBorrowerOperations(borrowerOperations).adjustVessel(_borrower, _asset, _assetChangeAmount , 0, _debateAmount, isDebtIncrease,_upperHint, _lowerHint);
     }
 
