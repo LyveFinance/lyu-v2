@@ -20,12 +20,16 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
     using SafeERC20 for IERC20;
 
     address public immutable  debtFlashMint;
-    
+    mapping(address => bool) public isAssetInWhitelist;
+
     uint256 public constant  MAX_LEFTOVER_R = 1e18;
 
 	mapping(address => IAMM) public amm;
 
     event AMMSet(address indexed asset, address indexed ammAddress);
+
+    event AssetAddedToWhitelist(address indexed asset);
+
 
     event LeverageOpened(address indexed borrower, address indexed asset, uint256 assetAmount, uint256 loanAmount);
 
@@ -42,16 +46,36 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
 
     error InvalidInitiator();
 
-    constructor(
-        address _debtFlashMint
-    ){
+    constructor(address _debtFlashMint){
         if (address(_debtFlashMint) == address(0)) {
             revert DebtFlashMintCannotBeZero();
         }
         debtFlashMint = _debtFlashMint;
-        IERC20(debtToken).approve(debtToken, type(uint256).max);
         IERC20(debtToken).approve(_debtFlashMint, type(uint256).max);
+        __Ownable_init();
     }
+
+     modifier onlyWhitelistedAsset(address _asset) {
+        require(isAssetInWhitelist[_asset], "Asset is not whitelisted");
+        _;
+    }
+
+    function setAMM(address _asset, IAMM _ammAddress) public onlyOwner {
+        require(_asset != address(0), "asset address cannot be zero");
+        require(address(_ammAddress) != address(0), "_amm address cannot be zero");
+        amm[_asset] = _ammAddress;
+        emit AMMSet(_asset, address(_ammAddress)); 
+
+    }
+    function addToWhitelist(address _asset) external onlyOwner {
+        require(_asset != address(0), "Asset address cannot be zero");
+        isAssetInWhitelist[_asset] = true;
+        IERC20(_asset).approve(address(borrowerOperations), type(uint256).max);
+        emit AssetAddedToWhitelist(_asset);
+    }
+    function approve (address erc20 ) external onlyOwner {
+		IERC20(erc20).approve(debtFlashMint,type(uint256).max);
+	}
 
     function openOneStepLeverage(
         address _asset,
@@ -80,7 +104,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
 
     }
 
-
     function adjustLeverage(
         address _asset,
 		uint256 _assetAmount,
@@ -105,15 +128,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         );
         DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
         emit LeverageAdjusted(msg.sender, _asset, _assetAmount, _loanAmount); 
-
-    }
-
-
-    function setAMM(address _asset, IAMM _ammAddress) public onlyOwner {
-        require(_asset != address(0), "asset address cannot be zero");
-        require(address(_ammAddress) != address(0), "_amm address cannot be zero");
-        amm[_asset] = _ammAddress;
-        emit AMMSet(_asset, address(_ammAddress)); 
 
     }
 
@@ -193,7 +207,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         uint256 _assetAmount,
         uint256 _debateAmount,
         address _upperHint, address _lowerHint) internal  {
-            IERC20(_asset).approve(address(borrowerOperations), _assetAmount);
             IBorrowerOperations(borrowerOperations).openVessel(_borrower, _asset, _assetAmount, _debateAmount, _upperHint, _lowerHint);
     }
 
@@ -205,7 +218,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         address _upperHint,
         address _lowerHint) internal {
             bool isDebtIncrease = _debateAmount > 0;
-            IERC20(_asset).approve(address(borrowerOperations), _assetChangeAmount);
             IBorrowerOperations(borrowerOperations).adjustVessel(_borrower, _asset, _assetChangeAmount , 0, _debateAmount, isDebtIncrease,_upperHint, _lowerHint);
     }
 
