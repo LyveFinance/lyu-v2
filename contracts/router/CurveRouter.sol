@@ -11,8 +11,7 @@ import "../Interfaces/IAMM.sol";
 contract CurveRouter is IAMM,Ownable {
 
   ICurveRouter public immutable amm;
-  address public oneStepLeverage;
-
+  address public immutable oneStepLeverage;
 
   constructor(address _amm,address _oneStepLeverage){
       oneStepLeverage = _oneStepLeverage;
@@ -26,7 +25,6 @@ contract CurveRouter is IAMM,Ownable {
        IERC20(tokenIn).approve(address(amm),_amount);
        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
        IERC20(tokenOut).transfer(msg.sender,leveragedCollateralChange);
-
       return leveragedCollateralChange;
     }
         

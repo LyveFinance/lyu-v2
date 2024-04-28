@@ -7,7 +7,8 @@ import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 interface IAMM {
   
     function swap (
-        address tokenIn,address tokenOut,
+        address tokenIn,
+        address tokenOut,
         bytes calldata extraData
     )
        payable external 

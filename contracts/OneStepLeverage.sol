@@ -4,6 +4,7 @@ pragma solidity ^0.8.19;
 import  "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import  "@openzeppelin/contracts/interfaces/IERC3156FlashBorrower.sol";
 import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
 
 import "./Addresses.sol";
@@ -16,10 +17,16 @@ import "./Interfaces/IDebtToken.sol";
 import "./Interfaces/IPriceFeed.sol";
 
 
-contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
+contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
     using SafeERC20 for IERC20;
 
-    address public immutable  debtFlashMint;
+	address public adminContract;
+	address public borrowerOperations;
+	address public debtToken;
+	address public priceFeed;
+	address public vesselManager;
+    address public debtFlashMint;
+
     mapping(address => bool) public isAssetInWhitelist;
 
     uint256 public constant  MAX_LEFTOVER_R = 1e18;
@@ -46,18 +53,27 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
 
     error InvalidInitiator();
 
-    constructor(address _debtFlashMint){
-        if (address(_debtFlashMint) == address(0)) {
-            revert DebtFlashMintCannotBeZero();
-        }
-        debtFlashMint = _debtFlashMint;
-        IERC20(debtToken).approve(_debtFlashMint, type(uint256).max);
-        __Ownable_init();
-    }
+    constructor(){
 
-     modifier onlyWhitelistedAsset(address _asset) {
+    }
+    modifier onlyWhitelistedAsset(address _asset) {
         require(isAssetInWhitelist[_asset], "Asset is not whitelisted");
         _;
+    }
+
+    function setAddress(address _adminContract,address _borrowerOperations,address _debtToken ,address _priceFeed,address _vesselManager,address _debtFlashMint) public onlyOwner {
+    	require(_adminContract != address(0), "Invalid address");
+    	require(_borrowerOperations != address(0), "Invalid address");
+    	require(_debtToken != address(0), "Invalid address");
+    	require(_priceFeed != address(0), "Invalid address");
+    	require(_vesselManager != address(0), "Invalid address");
+    	require(_debtFlashMint != address(0), "Invalid address");
+        adminContract = _adminContract;
+	    borrowerOperations = _borrowerOperations;
+	    debtToken = _debtToken;
+	    priceFeed = _priceFeed;
+	    vesselManager = _vesselManager;
+        debtFlashMint = _debtFlashMint;
     }
 
     function setAMM(address _asset, IAMM _ammAddress) public onlyOwner {
@@ -85,7 +101,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
 		address _upperHint,
 		address _lowerHint,
         bytes calldata ammData
-    ) external{
+    ) external onlyWhitelistedAsset(_asset){
         _checkParam(_asset,_assetAmount,_loanAmount);
         IERC20(_asset).transferFrom(msg.sender,address(this),_assetAmount);
         bytes memory data = abi.encode(
@@ -112,7 +128,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
 		address _upperHint,
 		address _lowerHint,
         bytes calldata ammData
-    ) external{
+    ) external onlyWhitelistedAsset(_asset){
         _adjustLeverageCheckParam(_asset, msg.sender, _assetAmount, _loanAmount);
         IERC20(_asset).transferFrom(msg.sender, address(this), _assetAmount);
         bytes memory data = abi.encode(
