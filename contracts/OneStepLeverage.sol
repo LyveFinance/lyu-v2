@@ -19,8 +19,6 @@ import "./Interfaces/IPriceFeed.sol";
 contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
     using SafeERC20 for IERC20;
 
-    IERC20 public immutable  collateralToken;
-
     address public immutable  debtFlashMint;
     
     uint256 public constant  MAX_LEFTOVER_R = 1e18;
@@ -45,20 +43,14 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
     error InvalidInitiator();
 
     constructor(
-        IERC20 _collateralToken,
         address _debtFlashMint
     ){
-        if (address(_collateralToken) == address(0)) {
-            revert CollateralTokenCannotBeZero();
-        }
         if (address(_debtFlashMint) == address(0)) {
             revert DebtFlashMintCannotBeZero();
         }
-        collateralToken = _collateralToken;
         debtFlashMint = _debtFlashMint;
         IERC20(debtToken).approve(debtToken, type(uint256).max);
         IERC20(debtToken).approve(_debtFlashMint, type(uint256).max);
-        _collateralToken.safeApprove(borrowerOperations, type(uint256).max);
     }
 
     function openOneStepLeverage(
