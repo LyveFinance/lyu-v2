@@ -147,7 +147,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Addresses ,ReentrancyGuard{
         uint256 maxLeverage = getMaxLeverage(_asset);
 
         // To calculate the amount of LYU that can be borrowed, the formula is (x - 1) * p, where x is the leverage multiple and p is the asset price
-        uint256 maxBorrowAmount = _assetAmount * _assetPrice / MAX_LEFTOVER_R * (maxLeverage - 1e18) / MAX_LEFTOVER_R;
+        uint256 maxBorrowAmount = (_assetAmount * _assetPrice / MAX_LEFTOVER_R) * (maxLeverage - 1e18) / MAX_LEFTOVER_R;
         return maxBorrowAmount;
     }
 

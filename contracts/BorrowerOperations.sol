@@ -114,7 +114,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 
 		ISortedVessels(sortedVessels).insert(vars.asset, _borrower, vars.NICR, _upperHint, _lowerHint);
 		vars.arrayIndex = IVesselManager(vesselManager).addVesselOwnerToArray(vars.asset, _borrower);
-		emit VesselCreated(vars.asset, msg.sender, vars.arrayIndex);
+		emit VesselCreated(vars.asset, _borrower, vars.arrayIndex);
 
 		// Move the asset to the Active Pool, and mint the debtToken amount to the borrower
 		_activePoolAddColl(vars.asset, _assetAmount);
