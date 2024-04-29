@@ -11,7 +11,7 @@ import "../Interfaces/IAMM.sol";
 
 
 
-contract PtRouter is IAMM,Ownable {
+contract PtRouterV2 is IAMM,Ownable {
 
   IPtRouter public immutable ptAmm;
   ICurveRouter public immutable curveAmm;
@@ -26,8 +26,6 @@ contract PtRouter is IAMM,Ownable {
   
     function swap(address tokenIn,address tokenOut,bytes calldata _ammData) external  payable returns (uint256 ) {
       
-      require(msg.sender == oneStepLeverage,"not oneStepLeverage");
-
       (bytes memory cureAmmData,address tempToken,bytes memory ptAmmData) = abi.decode(_ammData,(bytes,address, bytes));
       uint256 leveragedCollateralChange = _swapCurve(tokenIn,cureAmmData);
       return _swapPt( tempToken, leveragedCollateralChange , tokenOut,  ptAmmData);
@@ -59,6 +57,15 @@ contract PtRouter is IAMM,Ownable {
       
     }
 
+
+   function getEncodePtData( address receiver,
+        address market,
+        uint256 minPtOut,
+        ApproxParams calldata guessPtOut,
+        TokenInput calldata input,
+        LimitOrderData calldata limit) public pure returns (bytes memory ){
+        return abi.encode(receiver, market, minPtOut, guessPtOut, input, limit);
+    }
       
         
 }
