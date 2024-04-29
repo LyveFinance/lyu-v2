@@ -23,6 +23,8 @@ abstract contract AddressesConfigurable is OwnableUpgradeable {
 	address public vesselManager;
 	address public vesselManagerOperations;
 
+	address public oneStepLeverage;
+
 	bool public isAddressSetupInitialized;
 
 	/**
@@ -36,8 +38,8 @@ abstract contract AddressesConfigurable is OwnableUpgradeable {
 
 	function setAddresses(address[] calldata _addresses) external onlyOwner {
 		require(!isAddressSetupInitialized, "Setup is already initialized");
-		require(_addresses.length == 15, "Expected 15 addresses at setup");
-		for (uint i = 0; i < 15; i++) {
+		require(_addresses.length == 16, "Expected 15 addresses at setup");
+		for (uint i = 0; i < 16; i++) {
 			require(_addresses[i] != address(0), "Invalid address");
 		}
 		activePool = _addresses[0];
@@ -55,10 +57,14 @@ abstract contract AddressesConfigurable is OwnableUpgradeable {
 		treasuryAddress = _addresses[12];
 		vesselManager = _addresses[13];
 		vesselManagerOperations = _addresses[14];
+		oneStepLeverage = _addresses[15];
 
 		isAddressSetupInitialized = true;
 	}
 
+	function setOneStepLeverage(address _oneStepLeverage) public onlyOwner {
+		oneStepLeverage = _oneStepLeverage;
+	}
 	function setCommunityIssuance(address _communityIssuance) public onlyOwner {
 		communityIssuance = _communityIssuance;
 	}

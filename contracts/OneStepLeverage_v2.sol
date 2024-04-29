@@ -17,7 +17,7 @@ import "./Interfaces/IDebtToken.sol";
 import "./Interfaces/IPriceFeed.sol";
 
 
-contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
+contract OneStepLeverageV2 is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
     using SafeERC20 for IERC20;
 
 	address public adminContract;
@@ -93,34 +93,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
     function approve (address erc20 ) external onlyOwner {
 		IERC20(erc20).approve(debtFlashMint,type(uint256).max);
 	}
-
-    function openOneStepLeverage(
-        address _asset,
-		uint256 _assetAmount,
-        uint256 _loanAmount,
-        uint256 _minAssetAmount,
-		address _upperHint,
-		address _lowerHint,
-        bytes calldata ammData
-    ) external onlyWhitelistedAsset(_asset){
-        _checkParam(_asset,_assetAmount,_loanAmount);
-        IERC20(_asset).transferFrom(msg.sender,address(this),_assetAmount);
-        bytes memory data = abi.encode(
-            msg.sender,
-            _asset,
-            _assetAmount,
-            _loanAmount,
-            _minAssetAmount,
-            _upperHint,
-            _lowerHint,
-            0,
-            ammData
-        );
-        DebtFlashMint(debtFlashMint).flashLoan(this, debtToken, _loanAmount, data);
-        emit LeverageOpened(msg.sender, _asset, _assetAmount, _loanAmount); 
-
-    }
-
     function adjustLeverage(
         address _asset,
 		uint256 _assetAmount,
@@ -148,33 +120,6 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
 
     }
 
-    function _checkParam (
-        address _asset,
-		uint256 _assetAmount,
-        uint256 _loanAmount
-    ) internal view {
-        uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
-        uint256 maxLoanAmount = getMaxBorrowAmount(_asset, _assetPrice, _assetAmount); 
-        require(maxLoanAmount >= _loanAmount,"exceeded maximum borrowing");
-        require(address(amm[_asset]) != address(0),"amm is null");
-    }
-
-    // Calculate the maximum number of LYUs that can be borrowed based on the given collateral
-    function getMaxBorrowAmount(address _asset, uint256 _assetPrice, uint256 _assetAmount) public view returns (uint256) {
-        uint256 maxLeverage = getMaxLeverage(_asset);
-
-        // To calculate the amount of LYU that can be borrowed, the formula is (x - 1) * p, where x is the leverage multiple and p is the asset price
-        uint256 maxBorrowAmount = (_assetAmount * _assetPrice / MAX_LEFTOVER_R) * (maxLeverage - 1e18) / MAX_LEFTOVER_R;
-        return maxBorrowAmount;
-    }
-
-    // calculate the maximum leverage multiplier for opening leverage
-    function getMaxLeverage (address _asset) public view returns (uint256){
-        uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
-        // To calculate the maximum leverage ratio, mcr needs to be based on 1e18 as the base unit
-        // The total assets are mcr and the mortgage capital is mcr - 1e18
-        return  mcr * MAX_LEFTOVER_R /(mcr - 1 ether);
-    }
 
     function onFlashLoan(
         address initiator,
@@ -265,7 +210,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
         address _borrower,
 		uint256 _assetAmount,
         uint256 _loanAmount
-    ) internal view {
+    ) public view {
         uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
         uint256 coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
 		uint256 debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);

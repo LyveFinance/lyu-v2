@@ -19,6 +19,8 @@ contract DebtFlashMint is ReentrancyGuard,Ownable {
 
     uint256 public flashMintFeePercentage;
     address public feeRecipient;
+    uint256 public maxFlashLoanAmount;
+
 
     IDebtToken public debtToken;
 
@@ -55,7 +57,10 @@ contract DebtFlashMint is ReentrancyGuard,Ownable {
         flashMintFeePercentage = feePercentage;
         emit FlashMintFeePercentageChanged(flashMintFeePercentage);
     }
-
+ function setMaxFlashLoan(uint256 _maxFlashLoan) public onlyOwner {
+        require(_maxFlashLoan>0,"_maxFlashLoan error");
+        maxFlashLoanAmount = _maxFlashLoan;        
+    }
     function flashLoan(
         IERC3156FlashBorrower receiver,
         address token,
@@ -87,8 +92,9 @@ contract DebtFlashMint is ReentrancyGuard,Ownable {
         virtual
         returns (uint256)
     {
-        return token == address(debtToken) ? Math.min(totalSupply() / 10, type(uint256).max - totalSupply()) : 0;
+        return token == address(debtToken) ? maxFlashLoanAmount : 0;
     }
+    
 
      function flashFee(address token, uint256 amount) public view virtual returns (uint256) {
         require(token == address(debtToken) , "ERC20FlashMint: wrong token");

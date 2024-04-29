@@ -14,17 +14,17 @@ contract CurveRouter is IAMM,Ownable {
   address public immutable oneStepLeverage;
 
   constructor(address _amm,address _oneStepLeverage){
-      oneStepLeverage = _oneStepLeverage;
-      amm = ICurveRouter(_amm);
-    }
+    oneStepLeverage = _oneStepLeverage;
+    amm = ICurveRouter(_amm);
+  }
 
-    function swap(address tokenIn,address tokenOut, bytes calldata _ammData) external payable  returns (uint256 amountOut){
+  function swap(address tokenIn,address tokenOut, bytes calldata _ammData) external payable  returns (uint256 amountOut){
       require(msg.sender == oneStepLeverage,"not oneStepLeverage");
       (address[11] memory _router, uint256[5][5] memory _swap_params,uint256 _amount,uint256 _expected,address[5] memory _pools) = abi.decode(_ammData,(address[11], uint256[5][5] ,uint256 ,uint256 ,address[5] ));
-       IERC20(tokenIn).transferFrom(msg.sender,address(this),_amount);
-       IERC20(tokenIn).approve(address(amm),_amount);
-       uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
-       IERC20(tokenOut).transfer(msg.sender,leveragedCollateralChange);
+        IERC20(tokenIn).transferFrom(msg.sender,address(this),_amount);
+        IERC20(tokenIn).approve(address(amm),_amount);
+        uint256 leveragedCollateralChange = amm.exchange(_router, _swap_params, _amount, _expected, _pools);
+        IERC20(tokenOut).transfer(msg.sender,leveragedCollateralChange);
       return leveragedCollateralChange;
     }
         

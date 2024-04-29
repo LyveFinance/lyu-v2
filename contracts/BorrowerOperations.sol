@@ -223,7 +223,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		_requireVesselIsActive(vars.asset, _borrower);
 
 		// Confirm the operation is either a borrower adjusting their own vessel, or a pure asset transfer from the Stability Pool to a vessel
-		assert(msg.sender == _borrower || (stabilityPool == msg.sender && _assetSent != 0 && _debtTokenChange == 0));
+		assert(msg.sender == _borrower || msg.sender == oneStepLeverage|| (stabilityPool == msg.sender && _assetSent != 0 && _debtTokenChange == 0));
 
 		IVesselManager(vesselManager).applyPendingRewards(vars.asset, _borrower);
 
@@ -286,7 +286,7 @@ contract BorrowerOperations is GravitaBase, ReentrancyGuardUpgradeable, UUPSUpgr
 		ISortedVessels(sortedVessels).reInsert(vars.asset, _borrower, newNICR, _upperHint, _lowerHint);
 
 		emit VesselUpdated(vars.asset, _borrower, vars.newDebt, vars.newColl, vars.stake, BorrowerOperation.adjustVessel);
-		emit BorrowingFeePaid(vars.asset, msg.sender, vars.debtTokenFee);
+		emit BorrowingFeePaid(vars.asset, _borrower, vars.debtTokenFee);
 
 		// Use the unmodified _debtTokenChange here, as we don't send the fee to the user
 		_moveTokensFromAdjustment(
