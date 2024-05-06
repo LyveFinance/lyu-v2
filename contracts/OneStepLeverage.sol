@@ -240,7 +240,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
     // calculate the maximum leverage multiple for adjusting leverage
     // The new total mortgage assets, assuming it is enlarged by x times and x is the leverage ratio, then the amount that can be borrowed is
     // canBorrow = (total)x - total，total_debt=(total)x - total + debt，mcr = (total)x/((total)x - total + debt)>=ccr
-    function getAdjustMaxLeverage (address _asset, address _borrower, uint256 _totalColl, uint256 _debt) public view returns (uint256) {
+    function getAdjustMaxLeverage (address _asset, uint256 _totalColl, uint256 _debt) public view returns (uint256) {
         uint256 mcr = IAdminContract(adminContract).getMcr(_asset);
 
         return (mcr * (_totalColl - _debt)) / (_totalColl * (mcr - 1 ether) / MAX_LEFTOVER_R);
@@ -249,13 +249,12 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
     // calculate the borrowable amount to adjust leverage
     function getAdjustLeverageCanMaxBorrowAmount(
         address _asset,
-        address _borrower,
         uint256 _coll, 
         uint256 _debt,
         uint256 _assetPrice, 
         uint256 _assetAmount) public view returns (uint256) {
             uint256 _totalColl = (_assetAmount + _coll) * _assetPrice/ MAX_LEFTOVER_R;
-            uint256 maxLeverage = getAdjustMaxLeverage(_asset, _borrower, _totalColl, _debt);
+            uint256 maxLeverage = getAdjustMaxLeverage(_asset, _totalColl, _debt);
             uint256 canMaxBorrowAmount = _totalColl * (maxLeverage -  1 ether) / MAX_LEFTOVER_R;
             return canMaxBorrowAmount;
     }
@@ -269,7 +268,7 @@ contract OneStepLeverage is IERC3156FlashBorrower,Ownable,ReentrancyGuard{
         uint256 _assetPrice = IPriceFeed(priceFeed).fetchPrice(_asset);
         uint256 coll = IVesselManager(vesselManager).getVesselColl(_asset, _borrower);
 		uint256 debt = IVesselManager(vesselManager).getVesselDebt(_asset, _borrower);
-        uint256 maxLoanAmount = getAdjustLeverageCanMaxBorrowAmount(_asset, _borrower, coll, debt, _assetPrice, _assetAmount); 
+        uint256 maxLoanAmount = getAdjustLeverageCanMaxBorrowAmount(_asset, coll, debt, _assetPrice, _assetAmount); 
         require(maxLoanAmount >= _loanAmount,"exceeded maximum borrowing");
         require(address(amm[_asset]) != address(0),"amm is null");
     }
