@@ -16,12 +16,15 @@ contract PtRouter is IAMM,Ownable {
   IPtRouter public immutable ptAmm;
   ICurveRouter public immutable curveAmm;
 
-  address public immutable oneStepLeverage;
+  address public  oneStepLeverage;
 
   constructor( address _ptAmm,address _curveAmm,address _oneStepLeverage){
        ptAmm = IPtRouter(_ptAmm) ;
        curveAmm = ICurveRouter(_curveAmm) ;
        oneStepLeverage = _oneStepLeverage;
+    }
+    function setAddress(address _oneStepLeverage) public onlyOwner {
+    	oneStepLeverage = _oneStepLeverage;
     }
   
     function swap(address tokenIn,address tokenOut,bytes calldata _ammData) external  payable returns (uint256 ) {
